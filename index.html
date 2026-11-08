@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b5d3b">
+<meta name="description" content="UZEX 2035: birjada xarid va sotuv, oddiy tilda. Niyat, narx prognozi, AI-broker.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="UZEX 2035">
+<title>UZEX 2035</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="styles.css?v=1">
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="brand"><img src="icon.svg" alt="" width="34" height="34"><div><b>UZEX 2035</b><small id="greet">Assalomu alaykum!</small></div></div>
+    <button class="icon-btn" id="btnFont" aria-label="Yozuv o'lchami">Aa</button>
+  </header>
+
+  <main id="view" tabindex="-1"></main>
+
+  <nav class="tabs" aria-label="Bo'limlar">
+    <button data-tab="home" class="on"><span class="ti">🏠</span><span>Asosiy</span></button>
+    <button data-tab="orders"><span class="ti">📦</span><span>Buyurtmalar</span></button>
+    <button data-tab="prices"><span class="ti">📈</span><span>Narxlar</span></button>
+    <button data-tab="broker"><span class="ti">🤖</span><span>AI-broker</span></button>
+  </nav>
+</div>
+
+<div id="sheet" class="sheet" hidden>
+  <div class="sheet-bg" data-close></div>
+  <div class="sheet-card" role="dialog" aria-modal="true">
+    <button class="sheet-x" data-close aria-label="Yopish">✕</button>
+    <div id="sheetBody"></div>
+  </div>
+</div>
+<div id="toast" class="toast" hidden></div>
+
+<script src="config.js?v=1"></script>
+<script src="engine.js?v=1"></script>
+<script src="app.js?v=1"></script>
+</body>
+</html>
