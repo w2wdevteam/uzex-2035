@@ -22,7 +22,12 @@
   }
   const good = id => M.goods.find(g => g.id === id);
   const today = () => new Date().toLocaleDateString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric" });
-  function toast(t, ms = 2600) { const el = $("#toast"); el.textContent = t; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (el.hidden = true), ms); }
+  const I = (n, c) => window.ic(n, c);
+  // One Lucide icon per good (replaces OS emoji, which look different on every phone).
+  const GI = { cement: "brick-wall", wheat: "wheat", flour: "package", diesel: "fuel", lpg: "flame", rebar: "construction", sugar: "candy", sunflower_oil: "droplet", rice: "bean", polyethylene: "layers" };
+  const gi = g => I(GI[g.id] || "package");
+  const gav = (g, c = "") => `<span class="av ${c}">${gi(g)}</span>`;
+  function toast(t, ms = 2600, icon = "circle-check") { const el = $("#toast"); el.innerHTML = I(icon) + "<span>" + esc(t) + "</span>"; el.hidden = true; void el.offsetWidth; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (el.hidden = true), ms); }
   function sheet(html) { $("#sheetBody").innerHTML = html; $("#sheet").hidden = false; $(".sheet-card").scrollTop = 0; }
   function closeSheet() { $("#sheet").hidden = true; }
   document.addEventListener("click", e => { if (e.target.closest("[data-close]")) closeSheet(); });
@@ -78,6 +83,7 @@
   }
   const hhmm = iso => { const d = new Date(iso); return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" }) + " " + d.toTimeString().slice(0, 5); };
 
+  const statusIcon = o => o.step < 0 ? "circle-x" : o.step >= 5 ? "circle-check" : o.step === 3 ? "credit-card" : "hourglass";
   function statusPill(o) {
     if (o.step < 0) return o.fail && o.fail.at <= 2 ? '<span class="pill red">Rad etildi</span>' : '<span class="pill red">Bekor qilindi</span>';
     if (o.step >= 5) return '<span class="pill">Yakunlandi</span>';
@@ -90,6 +96,7 @@
   function go(t) {
     tab = t;
     document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
+    view.classList.toggle("noanim", t === "broker");
     render(); window.scrollTo(0, 0);
   }
   function render() {
@@ -100,11 +107,11 @@
   // ---------- voice ----------
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   function listen(btn, onText) {
-    if (!SR) { toast("Bu brauzerda ovoz yo'q. Yozib yuboring."); return; }
+    if (!SR) { toast("Bu brauzerda ovoz yo'q. Yozib yuboring.", 2600, "info"); return; }
     const r = new SR(); r.lang = "uz-UZ"; r.interimResults = false; r.maxAlternatives = 1;
-    btn.classList.add("rec"); toast("Gapiring...", 4000);
+    btn.classList.add("rec"); toast("Gapiring...", 4000, "mic");
     r.onresult = e => onText(e.results[0][0].transcript);
-    r.onerror = () => toast("Ovoz tushunilmadi. Qaytadan urinib ko'ring.");
+    r.onerror = () => toast("Ovoz tushunilmadi. Qaytadan urinib ko'ring.", 2600, "circle-alert");
     r.onend = () => btn.classList.remove("rec");
     r.start();
   }
@@ -112,56 +119,54 @@
   // ---------- HOME ----------
   function renderHome() {
     const active = orders.filter(o => o.step >= 0 && o.step < 5);
-    const c = UZ.forecast(good("cement"));
     const mine = orders.filter(o => o.mine), newP = props.filter(p => p.status === "new");
-    const coach = practice ? `<div class="card"><p class="kicker">Birinchi bitim: qadamma-qadam</p>
+    const coach = practice ? `<div class="card"><p class="kicker">${I("graduation-cap")}Birinchi bitim: qadamma-qadam</p>
         <ol class="coach">
           <li class="${mine.length ? "ok" : ""}">Niyatni yozing yoki ayting (pastdagi tugmalardan birini bosing)</li>
           <li class="${mine.length ? "ok" : ""}">To'liq narxni va "Narx qanday hosil bo'ldi" kartasini ko'ring</li>
-          <li class="${mine.length ? "ok" : ""}">✅ Tasdiqlang: bir marta</li>
+          <li class="${mine.length ? "ok" : ""}">Tasdiqlang: bir marta</li>
           <li class="${mine.some(o => o.step >= 3) ? "ok" : ""}">Holatni kuzating: bitim tuzilguncha</li>
           <li class="${mine.some(o => o.step >= 4) ? "ok" : ""}">To'lovni tasdiqlang va hujjatni oching</li>
         </ol></div>` : "";
+    const mkt = ["cement", "wheat", "rebar"].map(id => { const g = good(id), f = UZ.forecast(g);
+      return `<button class="li" data-good="${id}">${gav(g)}<span class="tx"><b>${g.name}</b><small>1 ${g.unit} · ${f.buy.h.toLowerCase()}</small></span>
+        <span class="end"><b>${money(f.now)}</b><small class="${f.chg > 0 ? "up" : "down"} b">${I(f.chg > 0 ? "trending-up" : "trending-down")} ${pct(f.chg)}</small></span></button>`; }).join("");
     view.innerHTML = `
       ${coach}
       <section class="card hero">
         <p class="kicker">${practice ? "Mashq · virtual pul" : "UZEX 2035 · Niyat"}</p>
         <h1>Nima qilmoqchisiz?</h1>
-        <p class="mut">Oddiy so'z bilan yozing yoki 🎤 bosib ayting. Qolganini biz qilamiz.</p>
+        <p class="mut">Oddiy so'z bilan yozing yoki ovoz bilan ayting. Qolganini biz qilamiz.</p>
         <div class="niyat-box">
-          <textarea id="niyat" rows="2" placeholder="Masalan: 50 tonna sement olmoqchiman, Samarqandga"></textarea>
-          <button class="mic" id="hMic" aria-label="Ovoz bilan">🎤</button>
+          <textarea id="niyat" rows="3" placeholder="Masalan: 50 tonna sement olmoqchiman, Samarqandga"></textarea>
+          <button class="mic" id="hMic" aria-label="Ovoz bilan">${I("mic")}</button>
         </div>
-        <button class="btn white" id="hGo">Narxini ko'rish →</button>
-        <div class="chips">
-          <button class="chip" data-ex="50 tonna sement olmoqchiman">🧱 50 t sement olish</button>
-          <button class="chip" data-ex="200 tonna bug'doy sotmoqchiman">🌾 200 t bug'doy sotish</button>
-          <button class="chip" data-ex="10 tonna suyultirilgan gaz kerak">🔥 10 t gaz olish</button>
+        <button class="btn" id="hGo">Narxini ko'rish ${I("arrow-right")}</button>
+        <div class="scroller">
+          <button class="chip" data-ex="50 tonna sement olmoqchiman">${I("brick-wall")}50 t sement olish</button>
+          <button class="chip" data-ex="200 tonna bug'doy sotmoqchiman">${I("wheat")}200 t bug'doy sotish</button>
+          <button class="chip" data-ex="10 tonna suyultirilgan gaz kerak">${I("flame")}10 t gaz olish</button>
         </div>
       </section>
       ${newP.map(propCard).join("")}
-      <div class="card balance"><span><span class="sm mut">${practice ? "Virtual hisob (bo'sh pul)" : "Hisobingizda bo'sh pul"}</span><br><b class="big-num" style="font-size:1.3em">${money(freeFunds())}</b></span>
-        <button class="btn ghost" id="hTop" style="width:auto;margin:0;min-height:50px">＋ To'ldirish</button></div>
-      ${!practice ? `<div class="card"><p class="b">🎓 Birinchi marta? Avval mashq qiling</p><p class="sm mut">1 mlrd virtual so'm bilan haqiqiy birjadagidek xarid qilib ko'ring. Pul yechilmaydi.</p><button class="btn dark" id="hPractice">Mashqni boshlash</button></div>` : ""}
-      ${active.length ? `<h2>Faol buyurtmalaringiz</h2>${active.slice(0, 2).map(orderCard).join("")}` : ""}
-      <h2>Bugun bozorda</h2>
-      <div class="card">
-        <div class="row"><span>🧱 Sement, 1 tonna</span><span class="v b">${money(c.now)}</span></div>
-        <div class="row"><span>4 haftalik prognoz</span><span class="v">${pct(c.chg)}</span></div>
-        <div class="row"><span>Maslahat (olish)</span><span class="v b">${c.buy.h}</span></div>
-        <button class="btn ghost" data-go="prices">Barcha narxlar va prognoz</button>
+      <div class="card balance"><span class="lbl"><span><small style="display:flex;gap:6px;align-items:center">${I("wallet")}${practice ? "Virtual hisob" : "Bo'sh pulingiz"}</small><b class="big-num" style="font-size:1.45em;white-space:nowrap">${money(freeFunds())}</b></span></span>
+        <button class="btn soft sm" id="hTop">${I("plus")}To'ldirish</button></div>
+      ${!practice ? `<button class="card promo" id="hPractice"><span class="av green">${I("graduation-cap")}</span><span class="tx"><b>Birinchi marta? Avval mashq qiling</b><small>1 mlrd virtual so'm bilan xavfsiz sinab ko'ring</small></span>${I("chevron-right", "chev")}</button>` : ""}
+      ${active.length ? `<div class="sec"><h2>Faol buyurtmalar</h2><button class="link" data-go="orders">Hammasi ${I("chevron-right")}</button></div>${active.slice(0, 2).map(orderCard).join("")}` : ""}
+      <div class="sec"><h2>Bugun bozorda</h2><button class="link" data-go="prices">Barcha narxlar ${I("chevron-right")}</button></div>
+      <div class="card tight" style="padding-top:4px;padding-bottom:4px">${mkt}</div>
+      <div class="grid2" style="margin-top:12px">
+        <button class="tile" data-go="broker"><span class="av ink">${I("bot")}</span><span><b>AI-broker</b><small>Savol bering, buyurtma tayyorlaydi</small></span></button>
+        <button class="tile" data-go="orders"><span class="av">${I("file-text")}</span><span><b>Hujjatlarim</b><small>Shartnoma, to'lov, yetkazish</small></span></button>
       </div>
-      <div class="grid2">
-        <button class="tile" data-go="broker"><span class="e">🤖</span><b>AI-broker</b><span class="sm mut">Savol bering, buyurtma tayyorlaydi</span></button>
-        <button class="tile" data-go="orders"><span class="e">📄</span><b>Hujjatlarim</b><span class="sm mut">Shartnoma, to'lov, yetkazish</span></button>
-      </div>
-      <p class="note" style="margin-top:14px">🛡️ Pulingiz klirking markazida himoyalangan: sotuvchi tovarni bermaguncha pul unga o'tmaydi. Har bir narx va komissiya oldindan ko'rsatiladi.</p>
-      <p class="sm mut" style="margin-top:12px">Demo: narxlar UZEX saralash bosqichi ma'lumotlaridan (2022-2026, sintetik). Haqiqiy savdo amalga oshirilmaydi.</p>`;
+      <p class="note">${I("shield-check")}<span>Pulingiz klirking markazida himoyalangan: sotuvchi tovarni bermaguncha pul unga o'tmaydi. Har bir narx va komissiya oldindan ko'rsatiladi.</span></p>
+      <p class="foot">Demo: narxlar UZEX saralash bosqichi ma'lumotlaridan (2022-2026, sintetik). Haqiqiy savdo amalga oshirilmaydi.</p>`;
+    view.querySelectorAll("[data-good]").forEach(b => b.onclick = () => { priceGood = b.dataset.good; go("prices"); });
     const ta = $("#niyat");
     $("#hGo").onclick = () => startNiyat(ta.value);
     $("#hMic").onclick = e => listen(e.currentTarget, t => { ta.value = t; startNiyat(t); });
     view.querySelectorAll("[data-ex]").forEach(b => b.onclick = () => { ta.value = b.dataset.ex; startNiyat(b.dataset.ex); });
-    $("#hTop").onclick = () => { localStorage.setItem(BKEY(), topup() + 500e6); toast("＋500 mln so'm hisobga tushdi (demo)"); render(); };
+    $("#hTop").onclick = () => { localStorage.setItem(BKEY(), topup() + 500e6); toast("500 mln so'm hisobga tushdi (demo)", 2600, "wallet"); render(); };
     const hp = $("#hPractice"); if (hp) hp.onclick = () => setPractice(true);
     bindCommon();
   }
@@ -178,13 +183,14 @@
   function propCard(p) {
     const { g, f } = quote(propIt(p)), lim = Math.round(f.now * p.lim), a = UZ.allIn(p.side, lim, p.qty);
     return `<div class="card proposal">
-      <div class="who"><span class="av">👨‍💼</span><span><b>Brokeringizdan taklif</b><br><span class="sm mut">${BROKER.name} · ${BROKER.firm}</span></span></div>
-      <p class="b">${p.side === "buy" ? "Sotib olish" : "Sotish"}: ${g.emoji} ${g.name}, ${p.qty} ${g.unit}</p>
-      <p class="sm">${esc(p.note)}</p>
-      <div class="row"><span>${p.side === "buy" ? "Eng yuqori" : "Eng past"} narx (1 ${g.unit})</span><span class="v b">${fmt(lim)} so'm</span></div>
+      <p class="kicker" style="margin-bottom:12px">${I("sparkles")}Brokeringizdan taklif</p>
+      <div class="who"><span class="av round">${I("user-round")}</span><span><b>${BROKER.name}</b><small>${BROKER.firm}</small></span></div>
+      <div class="what">${gi(g)}${p.side === "buy" ? "Sotib olish" : "Sotish"}: ${g.name}, ${p.qty} ${g.unit}</div>
+      <p class="sm mut" style="margin:4px 0 8px">${esc(p.note)}</p>
+      <div class="row"><span>${p.side === "buy" ? "Eng yuqori" : "Eng past"} narx<small>1 ${g.unit} uchun</small></span><span class="v">${fmt(lim)} so'm</span></div>
       <div class="row"><span>Eng ko'pi bilan jami</span><span class="v">${money(a.total)}</span></div>
-      <div class="btn2"><button class="btn no" data-pno="${p.id}">✕ Kerak emas</button><button class="btn" data-prop="${p.id}">Ko'rib chiqish</button></div>
-      <p class="ai-note">Broker faqat taklif qiladi. Siz tasdiqlamaguningizcha hech narsa yuborilmaydi.</p></div>`;
+      <div class="btn2"><button class="btn no" data-pno="${p.id}">Kerak emas</button><button class="btn" data-prop="${p.id}">Ko'rib chiqish</button></div>
+      <p class="ai-note">${I("shield-check")}<span>Broker faqat taklif qiladi. Siz tasdiqlamaguningizcha hech narsa yuborilmaydi.</span></p></div>`;
   }
   function openProp(id) {
     const p = props.find(x => x.id === id); if (!p) return;
@@ -199,7 +205,7 @@
   }
   function rejectProp(id) {
     const p = props.find(x => x.id === id); if (!p) return;
-    p.status = "no"; save(); closeSheet(); toast("Taklif rad etildi. Brokeringizga xabar berildi.");
+    p.status = "no"; save(); closeSheet(); toast("Taklif rad etildi. Brokeringizga xabar berildi.", 2600, "info");
     chat.push({ who: "human", text: "Tushunarli, taklifni bekor qildim. Boshqa narx yoki muddat kerak bo'lsa, shu yerga yozing." });
     badge(); render();
   }
@@ -217,7 +223,7 @@
         lim: it.side === "buy" ? 1.015 : 0.985, status: "new", note: `Bozorni ko'rdim: ${adv.h.toLowerCase()}. ${it.qty} ${g.unit} ${g.name.toLowerCase()}ni ${it.side === "buy" ? "olish" : "sotish"}ni taklif qilaman, narx chegarasi bilan.` };
       props.unshift(p); save();
       chat.push({ who: "human", prop: p.id, text: "Taklifim tayyor:" });
-      toast("📨 Brokeringiz taklif yubordi"); badge();
+      toast("Brokeringiz taklif yubordi", 2600, "sparkles"); badge();
       if (tab === "broker") renderBroker(); else if (tab === "home") render();
     }, 3500);
   }
@@ -228,7 +234,7 @@
     practice = on; localStorage.setItem("uzex2035.practice", on ? "1" : "0");
     orders = load(KEY(), seed); props = load(PKEY(), seedProps); chat.length = 0; pending = null;
     $("#practiceBar").hidden = !on; $("#btnPractice").classList.toggle("on", on);
-    toast(on ? "🎓 Mashq rejimi: 1 mlrd virtual so'm. Bemalol sinab ko'ring!" : "Oddiy rejimga qaytdingiz");
+    toast(on ? "Mashq rejimi: 1 mlrd virtual so'm. Bemalol sinab ko'ring!" : "Oddiy rejimga qaytdingiz", 2600, "graduation-cap");
     badge(); go("home");
   }
 
@@ -244,12 +250,14 @@
     const regions = ["Toshkent shahri", "Toshkent viloyati", "Samarqand viloyati", "Buxoro viloyati", "Andijon viloyati", "Farg'ona viloyati", "Namangan viloyati", "Qashqadaryo viloyati", "Surxondaryo viloyati", "Xorazm viloyati", "Navoiy viloyati", "Jizzax viloyati", "Sirdaryo viloyati", "Qoraqalpog'iston"];
     sheet(`
       <h1>Sizni to'g'ri tushundikmi?</h1>
-      ${text ? `<p class="mut">«${esc(text)}»</p>` : ""}
+      <p class="mut" style="margin:0 0 16px">Tekshiring, kerak bo'lsa o'zgartiring.</p>
+      ${text ? `<p class="quote">${I("message-circle")}«${esc(text)}»</p>` : ""}
       <div class="seg" id="side"><button data-v="buy" class="${it.side === "buy" ? "on" : ""}">Sotib olaman</button><button data-v="sell" class="${it.side === "sell" ? "on" : ""}">Sotaman</button></div>
-      <div class="field"><span>Tovar</span><div class="goods" id="gSel">${M.goods.map(x => `<button data-v="${x.id}" class="${x.id === it.good ? "on" : ""}">${x.emoji} ${x.name}</button>`).join("")}</div></div>
-      <label class="field"><span>Hajmi (${g.unit})</span><div class="stepper"><button id="qm">−</button><input id="qty" inputmode="decimal" value="${it.qty}"><button id="qp">+</button></div></label>
+      <div class="field"><span>Tovar</span><div class="goods" id="gSel">${M.goods.map(x => `<button data-v="${x.id}" class="${x.id === it.good ? "on" : ""}">${gi(x)}${x.name}</button>`).join("")}</div></div>
+      <label class="field"><span>Hajmi, ${g.unit}</span><div class="stepper"><button id="qm" aria-label="Kamaytirish">${I("minus")}</button><input id="qty" inputmode="decimal" value="${it.qty}"><button id="qp" aria-label="Ko'paytirish">${I("plus")}</button></div></label>
       <label class="field"><span>Qayerga / qayerdan</span><select id="reg">${regions.map(r => `<option ${r === it.region ? "selected" : ""}>${r}</option>`).join("")}</select></label>
-      <button class="btn" id="nNext">To'liq narxni ko'rish →</button>`);
+      <button class="btn" id="nNext">To'liq narxni ko'rish ${I("arrow-right")}</button>`);
+    const gs = $("#gSel .on"); if (gs) gs.scrollIntoView({ inline: "center", block: "nearest" });
     let side = it.side, gid = it.good;
     $("#side").onclick = e => { const b = e.target.closest("button"); if (!b) return; side = b.dataset.v; $("#side").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); };
     $("#gSel").onclick = e => { const b = e.target.closest("button"); if (!b) return; gid = b.dataset.v; $("#gSel").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); };
@@ -268,41 +276,42 @@
     const buy = it.side === "buy", adv = buy ? f.buy : f.sell;
     // Pre-trade check (Zerodha-style "required vs available"): deposit now, the full sum after the deal.
     const free = freeFunds(), needNow = buy ? aMax.deposit : a.deposit, needAll = buy ? aMax.total : a.deposit, okNow = free >= needNow;
+    const advIcon = adv.k === "buy" ? "circle-check" : adv.k === "wait" ? "hourglass" : "scale";
     sheet(`
-      ${prop ? `<p class="kicker">👨‍💼 Broker taklifi · ${BROKER.name}</p>` : it.byAI ? `<p class="kicker">🤖 AI tayyorladi · tasdiq sizda</p>` : ""}
+      ${prop ? `<p class="kicker">${I("user-round")}Broker taklifi · ${BROKER.name}</p>` : it.byAI ? `<p class="kicker">${I("bot")}AI tayyorladi · tasdiq sizda</p>` : ""}
       <h1>${buy ? "Siz to'laysiz" : "Siz olasiz"}</h1>
-      <p class="mut">${g.emoji} ${g.name}, ${it.qty} ${g.unit} · ${esc(it.region)}</p>
+      <p class="sub">${gi(g)}${g.name}, ${it.qty} ${g.unit} · ${esc(it.region)}</p>
       <div class="card">
         <div class="big-num">${money(a.total)}</div>
-        <p class="sm mut">Hamma xarajat ichida. Yashirin to'lov yo'q.</p>
-        <div class="row"><span>Tovar narxi<br><small class="mut">${fmt(f.now)} so'm × ${it.qty} ${g.unit}</small></span><span class="v">${money(a.base)}</span></div>
-        <div class="row"><span>Birja yig'imi <small class="mut">(${(a.exPct * 100).toFixed(2)}%)</small></span><span class="v">${buy ? "+" : "−"}${money(a.ex)}</span></div>
-        <div class="row"><span>Klirking <small class="mut">(${(a.clPct * 100).toFixed(2)}%)</small></span><span class="v">${buy ? "+" : "−"}${money(a.cl)}</span></div>
-        <div class="row"><span>Broker xizmati <small class="mut">(${(a.brPct * 100).toFixed(2)}%, misol)</small></span><span class="v">${buy ? "+" : "−"}${money(a.br)}</span></div>
+        <p class="sm mut" style="display:flex;gap:6px;align-items:center;margin:8px 0 8px">${I("shield-check")}Hamma xarajat ichida. Yashirin to'lov yo'q.</p>
+        <div class="row"><span>Tovar narxi<small>${fmt(f.now)} so'm × ${it.qty} ${g.unit}</small></span><span class="v">${money(a.base)}</span></div>
+        <div class="row"><span>Birja yig'imi<small>${(a.exPct * 100).toFixed(2)}%</small></span><span class="v">${buy ? "+" : "−"}${money(a.ex)}</span></div>
+        <div class="row"><span>Klirking<small>${(a.clPct * 100).toFixed(2)}%</small></span><span class="v">${buy ? "+" : "−"}${money(a.cl)}</span></div>
+        <div class="row"><span>Broker xizmati<small>${(a.brPct * 100).toFixed(2)}%, misol</small></span><span class="v">${buy ? "+" : "−"}${money(a.br)}</span></div>
         <div class="row total"><span>Jami</span><span class="v">${money(a.total)}</span></div>
       </div>
-      <div class="advice ${adv.k}"><div class="h">${adv.h}</div><p>${adv.t}</p><p class="sm">Prognoz: 4 haftada ${pct(f.chg)} · ishonch: ${f.conf}</p></div>
+      <div class="advice ${adv.k}"><span class="av">${I(advIcon)}</span><div><div class="h">${adv.h}</div><p>${adv.t}</p><p class="meta">Prognoz: 4 haftada ${pct(f.chg)} · ishonch: ${f.conf}</p></div></div>
       <div class="card">
-        <p class="b">Sizni himoya qiladigan shartlar</p>
-        <div class="row"><span>${buy ? "Eng yuqori narx" : "Eng past narx"} (1 ${g.unit})</span><span class="v b">${fmt(limit)} so'm</span></div>
-        <p class="sm mut">Bundan ${buy ? "qimmatga olinmaydi" : "arzonga sotilmaydi"}. Eng yomon holatda jami: ${money(aMax.total)}.</p>
+        <div class="card-h"><span class="av">${I("shield-check")}</span><h3>Sizni himoya qiladigan shartlar</h3></div>
+        <div class="row"><span>${buy ? "Eng yuqori narx" : "Eng past narx"}, 1 ${g.unit}</span><span class="v">${fmt(limit)} so'm</span></div>
+        <p class="hint">Bundan ${buy ? "qimmatga olinmaydi" : "arzonga sotilmaydi"}. Eng yomon holatda jami: ${money(aMax.total)}.</p>
         <div class="row"><span>Garov (qaytariladi)</span><span class="v">${money(a.deposit)}</span></div>
-        <p class="sm mut">Garov bitim bajarilguncha klirking markazida turadi, keyin qaytadi yoki to'lovga qo'shiladi.</p>
+        <p class="hint">Bitim bajarilguncha klirking markazida turadi, keyin qaytadi yoki to'lovga qo'shiladi.</p>
       </div>
       <div class="card">
-        <p class="b">Hisobingizni tekshirdik</p>
+        <div class="card-h"><span class="av ${okNow ? "green" : "amber"}">${I("wallet")}</span><h3>Hisobingizni tekshirdik</h3></div>
         <div class="row"><span>${practice ? "Virtual hisobda bo'sh" : "Hisobingizda bo'sh"}</span><span class="v">${money(free)}</span></div>
-        <div class="row ${okNow ? "good" : "bad"}"><span>Hozir kerak (garov)</span><span class="v">${money(needNow)} ${okNow ? "✓" : "✕"}</span></div>
-        ${buy ? `<div class="row ${free >= needAll ? "good" : ""}"><span>Bitimdan keyin to'lanadi</span><span class="v">${money(needAll)}${free >= needAll ? " ✓" : ""}</span></div>` : ""}
-        ${okNow ? (buy && free < needAll ? `<p class="sm" style="color:var(--warn)">Garov yetadi. To'lov kunigacha hisobni yana ${money(needAll - free)} ga to'ldiring.</p>` : "") :
-          `<p class="sm" style="color:var(--red);font-weight:700">Garov uchun ${money(needNow - free)} yetmaydi. Hisobni to'ldiring yoki hajmni kamaytiring.</p><button class="btn ghost" id="nTop">＋ Hisobni to'ldirish (demo)</button>`}
+        <div class="row ${okNow ? "good" : "bad"}"><span>Hozir kerak (garov)</span><span class="v">${money(needNow)}${I(okNow ? "check" : "x")}</span></div>
+        ${buy ? `<div class="row ${free >= needAll ? "good" : ""}"><span>Bitimdan keyin to'lanadi</span><span class="v">${money(needAll)}${free >= needAll ? I("check") : ""}</span></div>` : ""}
+        ${okNow ? (buy && free < needAll ? `<p class="hint" style="color:var(--amber)">Garov yetadi. To'lov kunigacha hisobni yana ${money(needAll - free)} ga to'ldiring.</p>` : "") :
+          `<p class="hint" style="color:var(--red);font-weight:700">Garov uchun ${money(needNow - free)} yetmaydi. Hisobni to'ldiring yoki hajmni kamaytiring.</p><button class="btn soft" id="nTop">${I("plus")}Hisobni to'ldirish (demo)</button>`}
       </div>
       ${formedCard(g, f)}
-      ${prop ? `<div class="btn2"><button class="btn no" id="nNo">✕ Rad etaman</button><button class="btn" id="nOk" ${okNow ? "" : "disabled"}>✅ Roziman</button></div>`
-        : `<button class="btn" id="nOk" ${okNow ? "" : "disabled"}>✅ Tasdiqlayman</button><button class="btn ghost" id="nBack">← O'zgartirish</button>`}
-      <p class="sm mut" style="text-align:center">${practice ? "Mashq: pul yechilmaydi, hammasi xuddi haqiqiydek ishlaydi." : "Bir marta tasdiqlaysiz. Brokeringiz va AI qolganini bajaradi, har qadamni shu yerda ko'rasiz."}</p>`);
+      ${prop ? `<div class="btn2"><button class="btn no" id="nNo">Rad etaman</button><button class="btn neon" id="nOk" ${okNow ? "" : "disabled"}>${I("check")}Roziman</button></div>`
+        : `<button class="btn neon" id="nOk" ${okNow ? "" : "disabled"}>${I("check")}Tasdiqlayman</button><button class="btn soft" id="nBack">${I("arrow-left")}O'zgartirish</button>`}
+      <p class="sm mut center">${practice ? "Mashq: pul yechilmaydi, hammasi xuddi haqiqiydek ishlaydi." : "Bir marta tasdiqlaysiz. Brokeringiz va AI qolganini bajaradi, har qadamni shu yerda ko'rasiz."}</p>`);
     const nb = $("#nBack"); if (nb) nb.onclick = () => niyatForm(it);
-    const nt = $("#nTop"); if (nt) nt.onclick = () => { localStorage.setItem(BKEY(), topup() + Math.ceil((needAll - free) / 1e7) * 1e7 + 1e7); toast("Hisob to'ldirildi (demo)"); niyatPrice(it, prop); };
+    const nt = $("#nTop"); if (nt) nt.onclick = () => { localStorage.setItem(BKEY(), topup() + Math.ceil((needAll - free) / 1e7) * 1e7 + 1e7); toast("Hisob to'ldirildi (demo)", 2600, "wallet"); niyatPrice(it, prop); };
     const nn = $("#nNo"); if (nn) nn.onclick = () => rejectProp(prop.id);
     $("#nOk").onclick = () => prop ? approveProp(prop.id) : placeOrder(it, f.now, { by: it.byAI ? "ai" : "me", limit });
   }
@@ -313,27 +322,27 @@
     const top = g.regions.slice().sort((a, b) => b[2] - a[2])[0];
     const end = new Date(w[3][0]); end.setDate(end.getDate() + 6);
     const d = s => new Date(s).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
-    return `<div class="card formed"><p class="kicker">Ochiq narx · tekshirsa bo'ladi</p><p class="b">Narx qanday hosil bo'ldi?</p>
+    return `<div class="card formed"><p class="kicker">${I("receipt")}Ochiq narx · tekshirsa bo'ladi</p><h3>Narx qanday hosil bo'ldi?</h3>
       <div class="wk">${w.map((x, i) => `<div class="${i === 3 ? "last" : ""}" style="height:${30 + 70 * (x[1] - mn) / ((mx - mn) || 1)}%"><span>${x[1] >= 1e6 ? (x[1] / 1e6).toFixed(2).replace(".", ",") + " mln" : Math.round(x[1] / 1e3) + " ming"}</span></div>`).join("")}</div>
-      <div class="wl">${w.map(x => `<span>${d(x[0])}<br>${x[2]} bitim</span>`).join("")}</div>
+      <div class="wl">${w.map(x => `<span><b>${d(x[0])}</b>${x[2]} bitim</span>`).join("")}</div>
       <div class="row"><span>Davr</span><span class="v">${d(w[0][0])} – ${d(end)}</span></div>
       <div class="row"><span>Bitimlar soni</span><span class="v">${fmt(deals)} ta</span></div>
       <div class="row"><span>Sotilgan hajm</span><span class="v">${fmt(vol)} ${g.unit}</span></div>
       <div class="row"><span>Usul</span><span class="v">o'rtacha (mediana)</span></div>
-      <div class="row"><span>Natija, 1 ${g.unit}</span><span class="v b">${fmt(f.now)} so'm</span></div>
-      <ul class="why sm">
+      <div class="row total"><span>Natija, 1 ${g.unit}</span><span class="v">${fmt(f.now)} so'm</span></div>
+      <details><summary>Qanday hisoblandi? ${I("chevron-right")}</summary><ul class="why sm">
         <li>Har bir haqiqiy bitim narxi olindi, eng o'rtadagisi tanlandi: bitta juda qimmat yoki arzon bitim narxni buzmaydi.</li>
         <li>Bekor qilingan bitimlar (${(g.annul * 100).toFixed(1).replace(".", ",")}%) hisobga olinmadi.</li>
         <li>Narx haqiqiy yetkazilgan tovardan: eng ko'p savdo ${top ? esc(top[0]) : "—"} bo'yicha.</li>
         <li>Har dushanba yangilanadi. Yig'imlar UZEX tarifi bo'yicha (2026-10-01 dan).</li>
-      </ul></div>`;
+      </ul></details></div>`;
   }
   function placeOrder(it, price, meta = {}) {
     const n = 143 + orders.filter(o => o.mine).length;
     const o = { id: (practice ? "MASHQ-" : "UZX-35-0") + n, side: it.side, good: it.good, qty: it.qty, price: Math.round(price), region: it.region, step: 0,
       date: new Date().toISOString().slice(0, 10), ts: [new Date().toISOString()], counter: "-", deal: "-", mine: true, by: meta.by || "me", limit: meta.limit };
     orders.unshift(o); save(); closeSheet();
-    toast("✅ Buyurtma qabul qilindi: " + o.id);
+    toast("Buyurtma qabul qilindi: " + o.id);
     go("orders"); openOrder(o.id);
     simulate(o.id);
   }
@@ -341,7 +350,7 @@
     const tick = () => {
       const o = orders.find(x => x.id === id); if (!o || o.step >= 3 || o.step < 0) return;
       o.step++; (o.ts = o.ts || [])[o.step] = new Date().toISOString(); if (o.step === 3) { o.counter = o.side === "buy" ? "\"Demo Sotuvchi\" MChJ" : "\"Demo Xaridor\" MChJ"; o.deal = "№ 2611-04" + (60000 + Math.floor(Math.random() * 9999)); }
-      save(); toast((o.step === 3 ? "🤝 " : "⏳ ") + o.id + ": " + STEPS[o.step][0]);
+      save(); toast(o.id + ": " + STEPS[o.step][0], 2600, o.step === 3 ? "handshake" : "hourglass");
       if (!$("#sheet").hidden && $("#oid") && $("#oid").dataset.id === id) openOrder(id);
       if (tab === "orders" || tab === "home") render();
       if (o.step < 3) setTimeout(tick, 6000);
@@ -351,29 +360,29 @@
 
   // ---------- ORDERS / cabinet ----------
   function orderCard(o) {
-    const g = good(o.good), p = o.step < 0 ? 100 : Math.round((o.step + 1) / STEPS.length * 100);
+    const g = good(o.good), n = o.step < 0 ? (o.fail ? o.fail.at + 1 : 6) : Math.min(o.step + 1, 6);
     return `<button class="order" data-order="${o.id}">
-      <div class="t"><b>${g.emoji} ${g.name}, ${o.qty} ${g.unit}</b>${statusPill(o)}</div>
-      <div class="sm mut">${o.side === "buy" ? "Sotib olish" : "Sotish"} · ${o.id} · ${o.date}</div>
-      <div class="sm ${o.fail ? "why" : ""}">${o.fail ? "Sabab: " + esc(o.fail.why) : STEPS[Math.min(o.step, 5)][0]}</div>
-      <div class="bar"><i style="width:${p}%;${o.step < 0 ? "background:#c9a19d" : ""}"></i></div></button>`;
+      <div class="t">${gav(g, o.step < 0 ? "amber" : o.step >= 5 ? "green" : "")}<span class="tx"><b>${g.name}, ${o.qty} ${g.unit}</b><small>${o.side === "buy" ? "Sotib olish" : "Sotish"} · <span class="mono">${o.id}</span> · ${o.date.slice(5).split("-").reverse().join(".")}</small></span>${I("chevron-right", "chev")}</div>
+      <div class="st"><span>${o.fail ? "" : STEPS[Math.min(o.step, 5)][0]}</span>${statusPill(o)}</div>
+      ${o.fail ? `<p class="why" style="margin-top:4px">${esc(o.fail.why)}</p>` : ""}
+      <div class="prog ${o.step < 0 ? "fail" : ""}">${STEPS.map((_, i) => `<i class="${i < n ? "on" : ""}"></i>`).join("")}</div></button>`;
   }
   function renderOrders() {
     const act = orders.filter(o => o.step >= 0 && o.step < 5), done = orders.filter(o => o.step >= 5 || o.step < 0);
     view.innerHTML = `
       <h1>Buyurtmalarim${practice ? ' <span class="pill ink">MASHQ</span>' : ""}</h1>
-      <p class="mut">Hamma narsa shu yerda: holat, pul, hujjatlar. Brokerga qo'ng'iroq qilish shart emas.</p>
-      <button class="btn" data-go="home">＋ Yangi buyurtma</button>
-      <h2>Jarayonda (${act.length})</h2>${act.map(orderCard).join("") || '<p class="mut">Hozircha yo\'q.</p>'}
-      <h2>Tarix</h2>${done.map(orderCard).join("")}
-      <button class="btn ghost" id="reset">Demoni qaytadan boshlash</button>`;
-    $("#reset").onclick = () => { orders = seed(); props = seedProps(); localStorage.removeItem(BKEY()); chat.length = 0; save(); badge(); render(); toast("Demo tiklandi"); };
+      <p class="lead">Holat, pul va hujjatlar shu yerda. Brokerga qo'ng'iroq qilish shart emas.</p>
+      <button class="btn" data-go="home" style="margin-top:0">${I("plus")}Yangi buyurtma</button>
+      <div class="sec"><h2>Jarayonda · ${act.length}</h2></div>${act.map(orderCard).join("") || `<div class="card empty"><span class="av">${I("clipboard-list")}</span><b>Faol buyurtma yo'q</b><span class="sm">Asosiy sahifada niyatingizni yozing: narxni darhol ko'rsatamiz.</span></div>`}
+      ${done.length ? `<div class="sec"><h2>Tarix</h2></div>${done.map(orderCard).join("")}` : ""}
+      <button class="btn soft" id="reset" style="margin-top:24px">${I("refresh-cw")}Demoni qaytadan boshlash</button>`;
+    $("#reset").onclick = () => { orders = seed(); props = seedProps(); localStorage.removeItem(BKEY()); chat.length = 0; save(); badge(); render(); toast("Demo tiklandi", 2600, "refresh-cw"); };
     bindCommon();
   }
   function docsFor(o) {
     return [
-      ["📝", "Topshiriq (buyurtma)", 0], ["📑", "Birja bitimi shartnomasi", 3], ["🏦", "Klirking hisoboti (to'lov)", 4],
-      ["🧾", "Hisob-faktura", 5], ["🚚", "Yuk xati (yetkazish)", 5],
+      ["file-pen-line", "Topshiriq (buyurtma)", 0], ["file-signature", "Birja bitimi shartnomasi", 3], ["landmark", "Klirking hisoboti (to'lov)", 4],
+      ["receipt", "Hisob-faktura", 5], ["truck", "Yuk xati (yetkazish)", 5],
     ].map(([e, t, s], i) => ({ e, t, i, ok: o.fail ? s < o.fail.at : o.step >= s }));
   }
   function openOrder(id) {
@@ -381,34 +390,34 @@
     const g = good(o.good), a = UZ.allIn(o.side, o.price, o.qty);
     sheet(`
       <span id="oid" data-id="${o.id}"></span>
-      <h1>${g.emoji} ${g.name}, ${o.qty} ${g.unit}</h1>
-      <p>${statusPill(o)} <span class="mut sm">${o.id} · ${o.date}</span></p>
-      ${o.fail ? `<div class="reason"><div class="h">${o.fail.at <= 2 ? "Buyurtma bajarilmadi" : "Bitim bekor qilindi"}</div><p><b>Sabab:</b> ${esc(o.fail.why)}</p><p><b>Endi:</b> ${esc(o.fail.next)}</p></div>
-        ${o.fail.at <= 2 ? `<button class="btn" id="retry">↻ Bugungi narx bilan qayta yuborish</button>` : ""}` : ""}
-      ${o.by === "broker" ? `<p class="sm mut">👨‍💼 Broker ${BROKER.name} taklif qildi, siz tasdiqladingiz.</p>` : o.by === "ai" ? `<p class="sm mut">🤖 AI-broker tayyorladi, siz tasdiqladingiz.</p>` : ""}
-      <div class="card"><ol class="steps">${STEPS.map(([t, s], i) => {
+      <h1>${g.name}, ${o.qty} ${g.unit}</h1>
+      <p class="sub">${statusPill(o)}<span class="sm"><span class="mono">${o.id}</span> · ${o.date}</span></p>
+      ${o.fail ? `<div class="reason">${I("circle-alert")}<div><div class="h">${o.fail.at <= 2 ? "Buyurtma bajarilmadi" : "Bitim bekor qilindi"}</div><p><b>Sabab:</b> ${esc(o.fail.why)}</p><p><b>Endi:</b> ${esc(o.fail.next)}</p></div></div>
+        ${o.fail.at <= 2 ? `<button class="btn" id="retry">${I("refresh-cw")}Bugungi narx bilan qayta yuborish</button>` : ""}` : ""}
+      ${o.by === "broker" ? `<p class="by">${I("user-check")}Broker ${BROKER.name} taklif qildi, siz tasdiqladingiz.</p>` : o.by === "ai" ? `<p class="by">${I("bot")}AI-broker tayyorladi, siz tasdiqladingiz.</p>` : ""}
+      <div class="card" style="margin-top:16px"><ol class="steps">${STEPS.map(([t, s], i) => {
         const ts = o.ts && o.ts[i];
         let cls = i < o.step || (o.step === 5 && i === 5) ? "done" : i === o.step ? "now" : "";
         if (o.fail) cls = i < o.fail.at ? "done" : i === o.fail.at ? "fail" : "skip";
-        const sub = cls === "fail" ? "✕ " + esc(o.fail.why) : s;
-        return `<li class="${cls}"><span class="dot">${cls === "done" ? "✓" : cls === "fail" ? "✕" : ""}</span>${t}${ts && cls !== "skip" && cls !== "" ? `<span class="tm">${hhmm(ts)}</span>` : ""}<small>${sub}</small></li>`;
+        const sub = cls === "fail" ? esc(o.fail.why) : s;
+        return `<li class="${cls}"><span class="dot">${cls === "done" ? I("check") : cls === "fail" ? I("x") : ""}</span><b>${t}</b><small>${ts && cls !== "skip" && cls !== "" ? `<span class="tm">${hhmm(ts)}</span>` : ""}${sub}</small></li>`;
       }).join("")}</ol>
-      ${!o.fail && o.step < 5 ? `<p class="sm mut">Har qadamda sizga xabar keladi. Sahifani yangilash shart emas.</p>` : ""}</div>
-      ${o.step === 3 ? `<button class="btn" id="pay">💳 To'lovni tasdiqlash (${money(a.total)})</button>` : ""}
+      ${!o.fail && o.step < 5 ? `<p class="ai-note">${I("info")}<span>Har qadamda sizga xabar keladi. Sahifani yangilash shart emas.</span></p>` : ""}</div>
+      ${o.step === 3 ? `<button class="btn neon" id="pay" style="margin:0 0 12px">${I("credit-card")}To'lovni tasdiqlash · ${money(a.total)}</button>` : ""}
       <div class="card">
         <div class="row"><span>${o.side === "buy" ? "Sotuvchi" : "Xaridor"}</span><span class="v">${esc(o.counter)}</span></div>
         <div class="row"><span>Bitim raqami</span><span class="v">${esc(o.deal)}</span></div>
-        <div class="row"><span>Narx (1 ${g.unit})</span><span class="v">${fmt(o.price)} so'm</span></div>
-        <div class="row"><span>Yig'imlar (birja+klirking+broker)</span><span class="v">${money(a.fees)}</span></div>
+        <div class="row"><span>Narx, 1 ${g.unit}</span><span class="v">${fmt(o.price)} so'm</span></div>
+        <div class="row"><span>Yig'imlar<small>birja + klirking + broker</small></span><span class="v">${money(a.fees)}</span></div>
         <div class="row total"><span>${o.side === "buy" ? "Jami to'lov" : "Sizga tushadi"}</span><span class="v">${money(a.total)}</span></div>
       </div>
-      <h2>Hujjatlar</h2>
-      ${docsFor(o).map(d => `<button class="doc ${d.ok ? "" : "off"}" data-doc="${d.i}" ${d.ok ? "" : "disabled"}><span class="e">${d.e}</span><span><b>${d.t}</b><br><small class="mut">${d.ok ? "Ochish" : "Bitim shu bosqichga yetganda tayyor bo'ladi"}</small></span></button>`).join("")}
-      <button class="btn ghost" id="askB">🤖 Shu buyurtma bo'yicha AI-brokerdan so'rash</button>`);
+      <div class="sec" style="margin-top:24px"><h2>Hujjatlar</h2></div>
+      <div class="card" style="padding-top:4px;padding-bottom:4px">${docsFor(o).map(d => `<button class="doc ${d.ok ? "" : "off"}" data-doc="${d.i}" ${d.ok ? "" : "disabled"}><span class="av">${I(d.e)}</span><span class="tx"><b>${d.t}</b><small>${d.ok ? "Ochish" : "Bitim shu bosqichga yetganda tayyor bo'ladi"}</small></span>${d.ok ? I("chevron-right", "chev") : ""}</button>`).join("")}</div>
+      <button class="btn soft" id="askB">${I("bot")}Shu buyurtma bo'yicha AI-brokerdan so'rash</button>`);
     const pay = $("#pay");
-    if (pay) pay.onclick = () => { if (freeFunds() + a.deposit < a.total) { toast("Hisobda pul yetmaydi. Asosiy sahifada hisobni to'ldiring."); return; }
-      o.step = 4; (o.ts = o.ts || [])[4] = new Date().toISOString(); save(); toast("💳 To'lov klirking markaziga o'tdi"); openOrder(id); render();
-      setTimeout(() => { o.step = 5; o.ts[5] = new Date().toISOString(); save(); toast("🚚 " + o.id + ": yetkazib berildi"); if ($("#oid") && $("#oid").dataset.id === id) openOrder(id); render(); }, 7000); };
+    if (pay) pay.onclick = () => { if (freeFunds() + a.deposit < a.total) { toast("Hisobda pul yetmaydi. Asosiy sahifada hisobni to'ldiring.", 2600, "circle-alert"); return; }
+      o.step = 4; (o.ts = o.ts || [])[4] = new Date().toISOString(); save(); toast("To'lov klirking markaziga o'tdi", 2600, "credit-card"); openOrder(id); render();
+      setTimeout(() => { o.step = 5; o.ts[5] = new Date().toISOString(); save(); toast(o.id + ": yetkazib berildi", 2600, "truck"); if ($("#oid") && $("#oid").dataset.id === id) openOrder(id); render(); }, 7000); };
     document.querySelectorAll("[data-doc]").forEach(b => b.onclick = () => openDoc(o, +b.dataset.doc));
     const rt = $("#retry"); if (rt) rt.onclick = () => niyatPrice({ side: o.side, good: o.good, qty: o.qty, region: o.region });
     $("#askB").onclick = () => { closeSheet(); go("broker"); brokerSay(o.id + " buyurtmam qanday holatda?"); };
@@ -427,62 +436,83 @@
       </table>
       <span class="stamp">DEMO · UZEX 2035</span>
       <p class="sm mut">Namuna hujjat. Haqiqiy versiyada elektron raqamli imzo bilan.</p></div>
-      <button class="btn" onclick="window.print()">🖨️ Chop etish / saqlash</button>
-      <button class="btn ghost" id="dBack">← Buyurtmaga qaytish</button>`);
+      <button class="btn" onclick="window.print()">${I("printer")}Chop etish / saqlash</button>
+      <button class="btn soft" id="dBack">${I("arrow-left")}Buyurtmaga qaytish</button>`);
     $("#dBack").onclick = () => openOrder(o.id);
   }
 
   // ---------- PRICES / forecast ----------
+  const short = v => v >= 1e6 ? (v / 1e6).toFixed(2).replace(".", ",") + " mln" : Math.round(v / 1e3) + " ming";
+  // Smooth path through points (Catmull-Rom -> cubic Bezier).
+  function smooth(P) {
+    let d = `M${P[0][0].toFixed(1)},${P[0][1].toFixed(1)}`;
+    for (let i = 0; i < P.length - 1; i++) {
+      const p0 = P[i - 1] || P[i], p1 = P[i], p2 = P[i + 1], p3 = P[i + 2] || p2, t = 0.18;
+      d += ` C${(p1[0] + (p2[0] - p0[0]) * t).toFixed(1)},${(p1[1] + (p2[1] - p0[1]) * t).toFixed(1)} ${(p2[0] - (p3[0] - p1[0]) * t).toFixed(1)},${(p2[1] - (p3[1] - p1[1]) * t).toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+    }
+    return d;
+  }
   function chartSVG(g, f) {
     const hist = g.weeks.slice(-26).map(w => w[1]);
     const all = hist.concat(f.pts.map(p => p.hi), f.pts.map(p => p.lo));
-    const lo = Math.min(...all), hi = Math.max(...all), pad = (hi - lo) * 0.12 || 1;
-    const W = 340, H = 200, n = hist.length + f.pts.length;
-    const x = i => 8 + i * (W - 16) / (n - 1), y = v => H - 22 - (v - (lo - pad)) * (H - 40) / (hi - lo + 2 * pad);
-    const hp = hist.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
-    const s = hist.length - 1;
-    const fp = [`${x(s)},${y(hist[s])}`].concat(f.pts.map((p, k) => `${x(s + k + 1).toFixed(1)},${y(p.p).toFixed(1)}`)).join(" ");
-    const band = [`${x(s)},${y(hist[s])}`].concat(f.pts.map((p, k) => `${x(s + k + 1)},${y(p.hi)}`)).concat(f.pts.map((p, k) => `${x(s + k + 1)},${y(p.lo)}`).reverse()).join(" ");
-    const col = f.chg > 0.01 ? "#b26a00" : f.chg < -0.01 ? "#12804f" : "#1d5fae";
-    return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Narx grafigi">
-      <line x1="${x(s)}" y1="10" x2="${x(s)}" y2="${H - 22}" stroke="#cfd8d3" stroke-dasharray="3 3"/>
-      <polygon points="${band}" fill="${col}" opacity=".13"/>
-      <polyline points="${hp}" fill="none" stroke="#0b5d3b" stroke-width="3" stroke-linejoin="round"/>
-      <polyline points="${fp}" fill="none" stroke="${col}" stroke-width="3" stroke-dasharray="6 5"/>
-      <text x="8" y="${H - 4}" font-size="12" fill="#5b6b62">6 oy oldin</text>
-      <text x="${x(s) - 4}" y="${H - 4}" font-size="12" fill="#5b6b62" text-anchor="end">bugun</text>
-      <text x="${W - 8}" y="${H - 4}" font-size="12" fill="${col}" text-anchor="end">prognoz</text>
-      <text x="8" y="16" font-size="12" fill="#5b6b62">${money(hi)}</text>
-      <text x="8" y="${H - 28}" font-size="12" fill="#5b6b62">${money(lo)}</text></svg>`;
+    const lo = Math.min(...all), hi = Math.max(...all), pad = (hi - lo) * 0.1 || 1;
+    const W = 360, H = 220, L = 4, R = 64, T = 12, B = 28, n = hist.length + f.pts.length;
+    const x = i => L + i * (W - L - R) / (n - 1), y = v => T + (hi + pad - v) * (H - T - B) / (hi - lo + 2 * pad);
+    const s = hist.length - 1, HP = hist.map((v, i) => [x(i), y(v)]);
+    const FP = [[x(s), y(hist[s])]].concat(f.pts.map((p, k) => [x(s + k + 1), y(p.p)]));
+    const band = [`${x(s)},${y(hist[s])}`].concat(f.pts.map((p, k) => `${x(s + k + 1).toFixed(1)},${y(p.hi).toFixed(1)}`)).concat(f.pts.map((p, k) => `${x(s + k + 1).toFixed(1)},${y(p.lo).toFixed(1)}`).reverse()).join(" ");
+    const col = f.chg > 0.01 ? "#D98A00" : f.chg < -0.01 ? "#0E9F5A" : "#3A55C8";
+    const line = smooth(HP), area = line + ` L${x(s).toFixed(1)},${H - B} L${x(0).toFixed(1)},${H - B} Z`;
+    const grid = [0, 1, 2, 3].map(k => { const v = lo - pad + (hi - lo + 2 * pad) * (k + .5) / 4, yy = y(v);
+      return `<line x1="${L}" x2="${W - R + 8}" y1="${yy.toFixed(1)}" y2="${yy.toFixed(1)}" stroke="#E7EAF3"/><text x="${W - R + 14}" y="${(yy + 4).toFixed(1)}" font-size="11" fill="#8A90AE">${short(v)}</text>`; }).join("");
+    const end = FP[FP.length - 1];
+    return `<div class="chart-wrap" style="--fc:${col}"><svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Narx grafigi: 6 oy va 4 haftalik prognoz">
+      <defs><linearGradient id="ga" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3A55C8" stop-opacity=".22"/><stop offset="1" stop-color="#3A55C8" stop-opacity="0"/></linearGradient></defs>
+      ${grid}
+      <rect x="${x(s)}" y="${T - 4}" width="${(x(n - 1) - x(s)).toFixed(1)}" height="${H - T - B + 4}" fill="#F3F5FA" rx="6"/>
+      <path d="${area}" fill="url(#ga)"/>
+      <polygon points="${band}" fill="${col}" opacity=".16"/>
+      <path d="${line}" fill="none" stroke="#3A55C8" stroke-width="2.75" stroke-linejoin="round" stroke-linecap="round"/>
+      <path d="${smooth(FP)}" fill="none" stroke="${col}" stroke-width="2.75" stroke-dasharray="5 5" stroke-linecap="round"/>
+      <circle cx="${end[0].toFixed(1)}" cy="${end[1].toFixed(1)}" r="4" fill="${col}"/>
+      <circle cx="${x(s).toFixed(1)}" cy="${y(hist[s]).toFixed(1)}" r="7" fill="#fff" stroke="#3A55C8" stroke-width="3"/>
+      <text x="${L}" y="${H - 8}" font-size="11" fill="#8A90AE">6 oy oldin</text>
+      <text x="${x(s).toFixed(1)}" y="${H - 8}" font-size="11" fill="#0C1033" font-weight="700" text-anchor="middle">bugun</text>
+      <text x="${(x(n - 1) + 6).toFixed(1)}" y="${H - 8}" font-size="11" fill="${col}" font-weight="700" text-anchor="middle">+4 hf</text></svg>
+      <div class="legend"><span><i></i>Haqiqiy narx</span><span><i class="f"></i>Prognoz</span><span><i class="b"></i>Oraliq ~80%</span></div></div>`;
   }
   function renderPrices() {
     const g = good(priceGood), f = UZ.forecast(g), adv = priceSide === "buy" ? f.buy : f.sell;
-    const w4 = g.weeks[g.weeks.length - 5][1];
+    const w4 = g.weeks[g.weeks.length - 5][1], m1 = (g.weeks[g.weeks.length - 1][1] - w4) / w4, y1 = f.yearAgo ? (f.now - f.yearAgo) / f.yearAgo : null;
+    const dp = v => `<span class="pill ${v > 0 ? "warn" : ""}">${I(v > 0 ? "trending-up" : "trending-down")}${pct(v)}</span>`;
+    const sl = $("#pg") ? $("#pg").scrollLeft : null;
     view.innerHTML = `
       <h1>Narxlar va AI-prognoz</h1>
-      <div class="goods" id="pg">${M.goods.map(x => `<button data-v="${x.id}" class="${x.id === g.id ? "on" : ""}">${x.emoji} ${x.name}</button>`).join("")}</div>
+      <div class="goods" id="pg">${M.goods.map(x => `<button data-v="${x.id}" class="${x.id === g.id ? "on" : ""}">${gi(x)}${x.name}</button>`).join("")}</div>
       <div class="card">
-        <p class="mut sm">${g.name}, 1 ${g.unit} (oxirgi 4 hafta mediana)</p>
+        <p class="mut sm" style="margin:0 0 4px">${g.name}, 1 ${g.unit} · oxirgi 4 hafta medianasi</p>
         <div class="big-num">${money(f.now)}</div>
-        <p class="sm">Bir oyda: <b>${pct((g.weeks[g.weeks.length - 1][1] - w4) / w4)}</b>${f.yearAgo ? ` · Bir yilda: <b>${pct((f.now - f.yearAgo) / f.yearAgo)}</b>` : ""}</p>
+        <div class="delta"><span class="sm mut">Bir oyda</span>${dp(m1)}${y1 !== null ? `<span class="sm mut" style="margin-left:8px">Bir yilda</span>${dp(y1)}` : ""}</div>
         ${chartSVG(g, f)}
       </div>
-      ${formedCard(g, f)}
+      <div class="sec" style="margin-top:24px"><h2>AI maslahati</h2></div>
       <div class="seg" id="ps"><button data-v="buy" class="${priceSide === "buy" ? "on" : ""}">Men olaman</button><button data-v="sell" class="${priceSide === "sell" ? "on" : ""}">Men sotaman</button></div>
-      <div class="advice ${adv.k}"><div class="h">${adv.k === "buy" ? "✅ " : adv.k === "wait" ? "⏳ " : "➖ "}${adv.h}</div><p>${adv.t}</p>
-        <p class="sm">4 haftadan keyin taxminan: <b>${money(f.pts[3].p)}</b> (${money(f.pts[3].lo)} – ${money(f.pts[3].hi)}) · ishonch: ${f.conf}</p></div>
-      <div class="card"><p class="b">Nega shunday deymiz? (oddiy tilda)</p><ul class="why">
+      <div class="advice ${adv.k}"><span class="av">${I(adv.k === "buy" ? "circle-check" : adv.k === "wait" ? "hourglass" : "scale")}</span><div><div class="h">${adv.h}</div><p>${adv.t}</p>
+        <p class="meta">4 haftadan keyin taxminan <b>${money(f.pts[3].p)}</b><br>${money(f.pts[3].lo)} – ${money(f.pts[3].hi)} · ishonch: ${f.conf}</p></div></div>
+      <button class="btn neon" id="pOrder" style="margin:0 0 12px">${priceSide === "buy" ? "Shu narxda sotib olish" : "Shu narxda sotish"} ${I("arrow-right")}</button>
+      <div class="card"><div class="card-h"><span class="av">${I("info")}</span><h3>Nega shunday deymiz?</h3></div><ul class="why">
         <li>Oxirgi 12 haftada narx haftasiga o'rtacha <b>${pct(f.weekly, 2)}</b> o'zgargan.</li>
         <li>Mavsum ta'siri: keyingi 4 haftada bu tovar narxi odatda <b>${pct(f.seasonChg)}</b> o'zgaradi (2022-2026 tarixi).</li>
         <li>Prognoz = so'nggi tendensiya + mavsum: jami <b>${pct(f.chg)}</b>.</li>
-        <li>Odatda eng arzon oy: <b>${f.cheapMonth}</b>, eng qimmat oy: <b>${f.dearMonth}</b> (2022-2026 tarixi).</li>
-        ${f.cheapDay && Math.abs(f.cheapDay.diff) > 0.001 ? `<li>Hafta kunlari ichida eng arzoni odatda <b>${f.cheapDay.day}</b> (${pct(f.cheapDay.diff)}), eng qimmati <b>${f.dearDay.day}</b> (${pct(f.dearDay.diff)}).</li>` : ""}
-        <li>Narx tebranishi: ${f.vol < 0.01 ? "kichik" : f.vol < 0.025 ? "o'rtacha" : "katta"}, shuning uchun prognozga ishonch <b>${f.conf}</b>.</li>
+        <li>Odatda eng arzon oy: <b>${f.cheapMonth}</b>, eng qimmat oy: <b>${f.dearMonth}</b>.</li>
+        ${f.cheapDay && Math.abs(f.cheapDay.diff) > 0.001 ? `<li>Hafta ichida eng arzoni odatda <b>${f.cheapDay.day}</b> (${pct(f.cheapDay.diff)}), eng qimmati <b>${f.dearDay.day}</b> (${pct(f.dearDay.diff)}).</li>` : ""}
+        <li>Narx tebranishi ${f.vol < 0.01 ? "kichik" : f.vol < 0.025 ? "o'rtacha" : "katta"}, shuning uchun prognozga ishonch <b>${f.conf}</b>.</li>
         <li>So'nggi 4 haftada ${fmt(f.deals4w)} ta bitim; bekor qilinganlar hisobga olinmagan.</li></ul>
-        <p class="sm mut">Prognoz kafolat emas: bu tarixiy bitimlardan hisoblangan taxmin.</p></div>
-      ${g.regions.length ? `<div class="card"><p class="b">Qayerda arzonroq? (oxirgi 12 oy)</p>${g.regions.slice(0, 3).map(r => `<div class="row"><span>${r[0]}</span><span class="v">${money(r[1])}</span></div>`).join("")}</div>` : ""}
-      <button class="btn" id="pOrder">${priceSide === "buy" ? "Shu narxda sotib olish" : "Shu narxda sotish"} →</button>
-      <button class="btn ghost" id="pAsk">🤖 AI-brokerdan maslahat so'rash</button>`;
+        <p class="ai-note">${I("info")}<span>Prognoz kafolat emas: bu tarixiy bitimlardan hisoblangan taxmin.</span></p></div>
+      ${g.regions.length ? `<div class="card"><div class="card-h"><span class="av">${I("map-pin")}</span><h3>Qayerda arzonroq?</h3></div>${g.regions.slice(0, 3).map((r, i) => `<div class="row"><span>${i === 0 ? `<b style="color:var(--tx)">${r[0]}</b>` : r[0]}</span><span class="v">${money(r[1])}</span></div>`).join("")}<p class="hint" style="margin-top:4px">Oxirgi 12 oy, 1 ${g.unit} uchun o'rtacha</p></div>` : ""}
+      ${formedCard(g, f)}
+      <button class="btn soft" id="pAsk">${I("bot")}AI-brokerdan maslahat so'rash</button>`;
+    if (sl !== null) $("#pg").scrollLeft = sl; else { const on = $("#pg .on"); if (on && on.offsetLeft > 250) $("#pg").scrollLeft = on.offsetLeft - 100; }
     $("#pg").onclick = e => { const b = e.target.closest("button"); if (b) { priceGood = b.dataset.v; renderPrices(); } };
     $("#ps").onclick = e => { const b = e.target.closest("button"); if (b) { priceSide = b.dataset.v; renderPrices(); } };
     $("#pOrder").onclick = () => startNiyat("", { side: priceSide, good: g.id });
@@ -492,10 +522,13 @@
   // ---------- AI BROKER ----------
   function renderBroker() {
     if (!chat.length) chat.push({ who: "bot", text: "Assalomu alaykum! Men sizning AI-brokeringizman.\nNarx aytaman, qachon olish yoki sotish foydaliligini tushuntiraman, buyurtmangizni tayyorlab beraman. Oxirgi qarorni doim o'zingiz qilasiz.\n\nNima qilamiz?" });
-    view.innerHTML = `<div class="broker-pad"><div class="chat" id="chat">${chat.map(msgHTML).join("")}</div>
-      <div class="chips"><button class="chip" id="askBroker" style="border-color:var(--blue);font-weight:700">👨‍💼 Brokerimdan taklif so'rash</button></div>
-      <div class="chips" id="sug">${["Sement narxi qancha?", "Bug'doy qachon sotgan ma'qul?", "30 tonna armatura olmoqchiman", "Buyurtmalarim qanday?", "Komissiya qancha?", "Pulim xavfsizmi?"].map(s => `<button class="chip">${s}</button>`).join("")}</div></div>
-      <form class="composer" id="cf"><button type="button" class="mic" id="cMic" aria-label="Ovoz">🎤</button><input id="ci" placeholder="Savolingizni yozing..." autocomplete="off"><button aria-label="Yuborish">➤</button></form>`;
+    view.innerHTML = `<div class="broker-pad">
+      <div class="chat-head"><span class="av ink lg">${I("bot")}</span><span><b>AI-broker</b><small>Onlayn · maslahat beradi, qaror sizda</small></span></div>
+      <div class="chat" id="chat">${chat.map(msgHTML).join("")}</div>
+      <p class="sugg-h">Tez savollar</p>
+      <div class="chips"><button class="chip" id="askBroker" style="border-color:var(--blue);color:var(--blue-d);font-weight:700">${I("user-round")}Brokerimdan taklif so'rash</button></div>
+      <div class="scroller" id="sug" style="margin:8px -16px 0;padding:0 16px 2px">${["Sement narxi qancha?", "Bug'doy qachon sotgan ma'qul?", "30 tonna armatura olmoqchiman", "Buyurtmalarim qanday?", "Komissiya qancha?", "Pulim xavfsizmi?"].map(s => `<button class="chip">${s}</button>`).join("")}</div></div>
+      <form class="composer" id="cf"><button type="button" class="mic" id="cMic" aria-label="Ovoz">${I("mic")}</button><input id="ci" placeholder="Savolingizni yozing..." autocomplete="off"><button aria-label="Yuborish">${I("send-horizontal")}</button></form>`;
     $("#cf").onsubmit = e => { e.preventDefault(); const v = $("#ci").value.trim(); if (v) { $("#ci").value = ""; brokerSay(v); } };
     $("#cMic").onclick = e => listen(e.currentTarget, t => brokerSay(t));
     $("#askBroker").onclick = requestProp;
@@ -503,9 +536,9 @@
     bindChat(); scrollChat();
   }
   function msgHTML(m) {
-    const from = m.who === "human" ? `<span class="from">👨‍💼 Brokeringiz · ${BROKER.name}</span>` : m.who === "bot" ? `<span class="from">🤖 AI-broker</span>` : "";
+    const from = m.who === "human" ? `<span class="from">${I("user-round")}Brokeringiz · ${BROKER.name}</span>` : m.who === "bot" ? `<span class="from">${I("bot")}AI-broker</span>` : "";
     const p = m.prop && props.find(x => x.id === m.prop);
-    const body = (m.html || esc(m.text)) + (p ? (p.status === "new" ? propCard(p) : `<p class="sm b">${p.status === "ok" ? "✅ Siz tasdiqladingiz" : "✕ Siz rad etdingiz"}</p>`) : "");
+    const body = (m.html || esc(m.text)) + (p ? (p.status === "new" ? propCard(p) : `<p class="by" style="font-weight:700">${p.status === "ok" ? I("circle-check") + "Siz tasdiqladingiz" : I("circle-x") + "Siz rad etdingiz"}</p>`) : "");
     return `<div class="msg ${m.who}">${from}${body}</div>`;
   }
   function scrollChat() { setTimeout(() => window.scrollTo(0, document.body.scrollHeight), 30); }
@@ -516,7 +549,7 @@
   async function brokerSay(text) {
     chat.push({ who: "me", text });
     if (tab !== "broker") { go("broker"); } else renderBroker();
-    const box = $("#chat"); box.insertAdjacentHTML("beforeend", '<div class="msg bot typing" id="typ">Yozmoqda...</div>'); scrollChat();
+    const box = $("#chat"); box.insertAdjacentHTML("beforeend", '<div class="msg bot typing" id="typ" aria-label="Yozmoqda"><i></i><i></i><i></i></div>'); scrollChat();
     let reply = null;
     if (CFG.CHAT_API) {
       try {
@@ -541,12 +574,12 @@
   }
   function prepCard(it) {
     const { g, f, a } = quote(it);
-    return `<div class="card"><b>${it.side === "buy" ? "Sotib olish" : "Sotish"}: ${g.emoji} ${g.name}, ${it.qty} ${g.unit}</b>
-      <div class="row"><span>Narx (1 ${g.unit})</span><span class="v">${fmt(f.now)} so'm</span></div>
+    return `<div class="card"><div class="card-h" style="margin-bottom:4px">${gav(g)}<b>${it.side === "buy" ? "Sotib olish" : "Sotish"}: ${g.name}, ${it.qty} ${g.unit}</b></div>
+      <div class="row"><span>Narx, 1 ${g.unit}</span><span class="v">${fmt(f.now)} so'm</span></div>
       <div class="row"><span>Yig'imlar</span><span class="v">${money(a.fees)}</span></div>
       <div class="row total"><span>Jami</span><span class="v">${money(a.total)}</span></div>
-      <button class="btn" data-prep='${esc(JSON.stringify(it))}'>Ko'rib chiqish va tasdiqlash</button>
-      <p class="ai-note">🤖 AI tayyorladi. Bu maslahat, buyruq emas: siz tasdiqlamaguningizcha hech narsa yuborilmaydi.</p></div>`;
+      <button class="btn neon" data-prep='${esc(JSON.stringify(it))}'>Ko'rib chiqish va tasdiqlash</button>
+      <p class="ai-note">${I("shield-check")}<span>AI tayyorladi. Bu maslahat, buyruq emas: siz tasdiqlamaguningizcha hech narsa yuborilmaydi.</span></p></div>`;
   }
   function localBroker(text) {
     const t = UZ.norm(text), it = UZ.parseIntent(text);
@@ -564,7 +597,7 @@
       if (!list.length) return { who: "bot", text: "Faol buyurtmangiz yo'q. Yangi buyurtma tayyorlaymi?" };
       return { who: "bot", html: esc("Buyurtmalaringiz holati:") + list.map(o => {
         const g = good(o.good), nxt = o.fail ? "Sabab: " + o.fail.why + " " + o.fail.next : o.step === 3 ? "Bitim tuzildi. Endi to'lovni tasdiqlashingiz kerak." : o.step === 2 ? "Birjada mos taklif qidirilmoqda. Bitim tuzilsa darhol xabar beraman." : o.step >= 5 ? "Yakunlandi, hujjatlar tayyor." : "Broker tekshiruvida.";
-        return `<div class="card"><b>${g.emoji} ${g.name}, ${o.qty} ${g.unit}</b> ${statusPill(o)}<p class="sm">${esc(nxt)}</p><button class="btn ghost" data-order="${o.id}">Batafsil va hujjatlar</button></div>`;
+        return `<div class="card"><div class="card-h" style="margin-bottom:8px">${gav(g)}<span><b style="display:block">${g.name}, ${o.qty} ${g.unit}</b>${statusPill(o)}</span></div><p class="sm" style="margin:0">${esc(nxt)}</p><button class="btn soft sm" style="margin-top:12px" data-order="${o.id}">Batafsil va hujjatlar ${I("chevron-right")}</button></div>`;
       }).join("") };
     }
     if (/(komissiya|yig'im|xarajat|to'lov qancha|комисс|сбор|fee|qancha to'layman)/.test(t)) {
@@ -574,7 +607,7 @@
       return { who: "bot", text: "Pulingiz himoyalangan:\n• Pul to'g'ridan-to'g'ri sotuvchiga emas, klirking markaziga tushadi.\n• Sotuvchi tovarni bermasa, bitim bekor bo'ladi va garovingiz qaytadi, sotuvchi jarima to'laydi.\n• Siz belgilagan eng yuqori narxdan qimmatga olinmaydi.\n• Har qadam va har hujjat \"Buyurtmalar\" bo'limida ko'rinadi." };
     }
     if (/(hujjat|shartnoma|faktura|документ|yuk xati)/.test(t)) {
-      return { who: "bot", html: esc("Hujjatlar har bir buyurtma ichida: topshiriq, birja shartnomasi, klirking hisoboti, hisob-faktura, yuk xati. Bosqichga yetganda o'zi paydo bo'ladi.") + '<button class="btn ghost" data-go="orders">Buyurtmalarni ochish</button>' };
+      return { who: "bot", html: esc("Hujjatlar har bir buyurtma ichida: topshiriq, birja shartnomasi, klirking hisoboti, hisob-faktura, yuk xati. Bosqichga yetganda o'zi paydo bo'ladi.") + '<button class="btn soft sm" style="margin-top:12px" data-go="orders">Buyurtmalarni ochish ' + I("chevron-right") + '</button>' };
     }
     if (/(sessiya|savdo vaqti|qachon ochiladi|сесси)/.test(t)) {
       return { who: "bot", text: "Hozir birjada savdo sessiyalar bo'yicha o'tadi (har bo'limda taxminan 20 daqiqalik oynalar). Siz buyurtmani istalgan vaqtda berasiz: men uni navbatga qo'yaman va keyingi sessiyada brokeringiz orqali yuboraman. Sessiya oxiridagi shoshilinch navbat sizni qiynamaydi." };
@@ -582,7 +615,7 @@
     if (it.good && (/(qachon|prognoz|oshadi|tushadi|arzonlash|qimmatlash|ma'qul|kutay|прогноз|когда)/.test(t))) {
       const g = good(it.good), f = UZ.forecast(g), side = it.side || (/sot/.test(t) && !/sotib ol/.test(t) ? "sell" : "buy"), adv = side === "buy" ? f.buy : f.sell;
       return { who: "bot", html: esc(`${g.name}: hozir ${fmt(f.now)} so'm/${g.unit}.\n4 haftalik prognoz: ${pct(f.chg)} (ishonch ${f.conf}).\n\n${adv.h}. ${adv.t}\n\nOdatda eng arzon oy ${f.cheapMonth}, eng qimmat oy ${f.dearMonth}.${f.cheapDay ? ` Hafta ichida eng arzon kun odatda ${f.cheapDay.day}.` : ""}`) +
-        `<button class="btn ghost" data-go="prices">Grafikni ko'rish</button>` };
+        `<button class="btn soft sm" style="margin-top:12px" data-go="prices">${I("chart-spline")}Grafikni ko'rish</button>` };
     }
     if (it.side && it.good) {
       if (!it.qty) { pending = it; return { who: "bot", text: `Yaxshi, ${good(it.good).name} ${it.side === "buy" ? "sotib olamiz" : "sotamiz"}. Qancha ${good(it.good).unit}?` }; }
@@ -590,7 +623,7 @@
     }
     if (it.good) {
       const g = good(it.good), f = UZ.forecast(g);
-      return { who: "bot", text: `${g.emoji} ${g.name}: oxirgi 4 haftada 1 ${g.unit} o'rtacha ${fmt(f.now)} so'm.\nPrognoz (4 hafta): ${pct(f.chg)}.\n\nSotib olasizmi yoki sotasizmi? Masalan: "20 tonna ${g.name.toLowerCase()} olmoqchiman".` };
+      return { who: "bot", text: `${g.name}: oxirgi 4 haftada 1 ${g.unit} o'rtacha ${fmt(f.now)} so'm.\nPrognoz (4 hafta): ${pct(f.chg)}.\n\nSotib olasizmi yoki sotasizmi? Masalan: "20 tonna ${g.name.toLowerCase()} olmoqchiman".` };
     }
     if (it.side && !it.good) { pending = { side: it.side, qty: it.qty }; return { who: "bot", text: "Qaysi tovar? Masalan: sement, bug'doy, un, gaz, armatura, shakar, yog', guruch." }; }
     return { who: "bot", text: "Tushunmadim, lekin yordam beraman. Shunday yozib ko'ring:\n• \"Sement narxi qancha?\"\n• \"50 tonna un olmoqchiman\"\n• \"Bug'doy qachon sotgan ma'qul?\"\n• \"Buyurtmam qayerda?\"" };
@@ -602,8 +635,9 @@
   }
 
   // ---------- font size, boot ----------
+  document.querySelectorAll("i[data-i]").forEach(el => { el.outerHTML = I(el.dataset.i); });
   if (localStorage.getItem("uzex2035.big") === "1") document.documentElement.classList.add("big");
-  $("#btnFont").onclick = () => { const on = document.documentElement.classList.toggle("big"); localStorage.setItem("uzex2035.big", on ? "1" : "0"); toast(on ? "Katta yozuv yoqildi" : "Oddiy yozuv"); };
+  $("#btnFont").onclick = () => { const on = document.documentElement.classList.toggle("big"); localStorage.setItem("uzex2035.big", on ? "1" : "0"); toast(on ? "Katta yozuv yoqildi" : "Oddiy yozuv", 2000, "a-large-small"); };
   $("#btnPractice").onclick = () => setPractice(!practice);
   $("#pExit").onclick = () => setPractice(false);
   $("#practiceBar").hidden = !practice; $("#btnPractice").classList.toggle("on", practice);

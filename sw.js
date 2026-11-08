@@ -1,5 +1,5 @@
-const C = "uzex2035-v2";
-const SHELL = ["./", "index.html", "styles.css?v=2", "config.js?v=2", "engine.js?v=2", "app.js?v=2", "icon.svg", "fonts/onest-latin.woff2", "fonts/onest-latin-ext.woff2", "fonts/plexmono-500-latin.woff2", "manifest.webmanifest", "data/market.json"];
+const C = "uzex2035-v3";
+const SHELL = ["./", "index.html", "styles.css?v=3", "icons.js?v=3", "config.js?v=3", "engine.js?v=3", "app.js?v=3", "icon.svg", "fonts/onest-latin.woff2", "fonts/onest-latin-ext.woff2", "fonts/plexmono-500-latin.woff2", "manifest.webmanifest", "data/market.json"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(C).then(c => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(k => Promise.all(k.filter(x => x !== C).map(x => caches.delete(x))))); self.clients.claim(); });
 self.addEventListener("fetch", e => {

@@ -14,37 +14,38 @@
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preload" href="fonts/onest-latin.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="styles.css?v=2">
+<link rel="stylesheet" href="styles.css?v=3">
 </head>
 <body>
 <div id="app">
   <header class="top">
-    <div class="brand"><img src="icon.svg" alt="" width="34" height="34"><div><b>UZEX <i>2035</i></b><small id="greet">Assalomu alaykum!</small></div></div>
-    <div class="top-act"><button class="icon-btn" id="btnPractice" aria-label="Mashq rejimi">🎓 Mashq</button><button class="icon-btn" id="btnFont" aria-label="Yozuv o'lchami">Aa</button></div>
+    <div class="brand"><img src="icon.svg" alt="" width="40" height="40"><div><b>UZEX <i>2035</i></b><small id="greet">Assalomu alaykum!</small></div></div>
+    <div class="top-act"><button class="icon-btn" id="btnPractice" aria-label="Mashq rejimi"><i data-i="graduation-cap"></i>Mashq</button><button class="icon-btn aa" id="btnFont" aria-label="Yozuv o'lchami">Aa</button></div>
   </header>
-  <div id="practiceBar" class="practice-bar" hidden><span>🎓 MASHQ REJIMI: pul virtual, haqiqiy emas</span><button id="pExit">Chiqish</button></div>
+  <div id="practiceBar" class="practice-bar" hidden><span><i data-i="graduation-cap"></i>Mashq rejimi: pul virtual</span><button id="pExit">Chiqish</button></div>
 
   <main id="view" tabindex="-1"></main>
 
   <nav class="tabs" aria-label="Bo'limlar">
-    <button data-tab="home" class="on"><span class="ti">🏠</span><span>Asosiy</span></button>
-    <button data-tab="orders"><span class="ti">📦</span><span>Buyurtmalar</span></button>
-    <button data-tab="prices"><span class="ti">📈</span><span>Narxlar</span></button>
-    <button data-tab="broker"><span class="ti">🤖</span><span>AI-broker</span><span class="badge" id="bBadge" hidden>1</span></button>
+    <button data-tab="home" class="on"><span class="ti"><i data-i="house"></i></span><span>Asosiy</span></button>
+    <button data-tab="orders"><span class="ti"><i data-i="clipboard-list"></i></span><span>Buyurtmalar</span></button>
+    <button data-tab="prices"><span class="ti"><i data-i="chart-spline"></i></span><span>Narxlar</span></button>
+    <button data-tab="broker"><span class="ti"><i data-i="bot"></i></span><span>AI-broker</span><span class="badge" id="bBadge" hidden>1</span></button>
   </nav>
 </div>
 
 <div id="sheet" class="sheet" hidden>
   <div class="sheet-bg" data-close></div>
   <div class="sheet-card" role="dialog" aria-modal="true">
-    <button class="sheet-x" data-close aria-label="Yopish">✕</button>
+    <button class="sheet-x" data-close aria-label="Yopish"><i data-i="x"></i></button>
     <div id="sheetBody"></div>
   </div>
 </div>
 <div id="toast" class="toast" hidden></div>
 
-<script src="config.js?v=2"></script>
-<script src="engine.js?v=2"></script>
-<script src="app.js?v=2"></script>
+<script src="icons.js?v=3"></script>
+<script src="config.js?v=3"></script>
+<script src="engine.js?v=3"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>
