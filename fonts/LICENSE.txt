@@ -1,0 +1,1 @@
+Onest (c) The Onest Project Authors; IBM Plex Mono (c) IBM Corp. Both under the SIL Open Font License 1.1 (https://openfontlicense.org). Files from Google Fonts, self-hosted for offline PWA use.
